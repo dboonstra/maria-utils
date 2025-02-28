@@ -90,11 +90,67 @@ class MyMaria:
         self.cursor.execute(query)
         self.conn.commit()
 
+    def create_table_from_csv(
+        self, csv_filepath: str, table_name: str,
+        transform: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None,  # Correct type hint
+    ):
+        """
+        Creates a new table in the database based on the structure of a CSV file.
+
+        Args:
+            csv_filepath (str): The path to the CSV file.
+            table_name (str): The name of the table to create.
+        """
+        try:
+            df = pd.read_csv(csv_filepath, nrows=10)  # Read a few rows to infer types
+            if transform:
+                df = transform(df)
+
+
+            # Map pandas dtypes to SQLAlchemy types
+            type_mapping = {
+                "object": sqlalchemy.String(255),
+                "int64": sqlalchemy.Integer,
+                "float64": sqlalchemy.Float,
+                "bool": sqlalchemy.Boolean,
+                "datetime64[ns]": sqlalchemy.DateTime,
+            }
+
+            columns = []
+            for col_name, dtype in df.dtypes.items():
+                if str(dtype) in ["datetime64[ns]"]:
+                    column_type = sqlalchemy.DateTime
+                elif str(dtype) in type_mapping:
+                    column_type = type_mapping[str(dtype)]
+                else:
+                    column_type = sqlalchemy.String(255)  # Default to String if type not recognized, ADD LENGTH
+
+                # Add a length to string columns
+                if isinstance(column_type, sqlalchemy.String):
+                  column_type = sqlalchemy.String(255)  # Assign a default length for string
+                  # TODO: maybe use 2xmax len observed ?
+                if self.verbose:
+                    warn(f"New table column: {col_name} => {str(dtype)} => {column_type}")
+                columns.append(sqlalchemy.Column(col_name, column_type))
+
+            metadata = sqlalchemy.MetaData()
+            table = sqlalchemy.Table(table_name, metadata, *columns)
+            print(table)
+
+            metadata.create_all(self.engine)
+            self.verb(f"Table '{table_name}' created successfully.")
+
+        except FileNotFoundError:
+            warn(f"Error: CSV file not found at '{csv_filepath}'")
+        except Exception as e:
+            warn(f"An unexpected error occurred: {e}")
+
     def load_csv_to_mariadb(
         self,
         csv_filepath: str,
         table_name: str,
         temp_table: str = None,
+        create_table: bool = False,
         chunksize: int = 10000,
         transform: Optional[Callable[[pd.DataFrame], pd.DataFrame]] = None,  # Correct type hint
     ):
@@ -119,8 +175,18 @@ class MyMaria:
             # Check if the table exists
             inspector = sqlalchemy.inspect(self.engine)
             if not inspector.has_table(table_name):
-                warn(f"Error: Table '{table_name}' does not exist in the database.")
-                return
+                if create_table:
+                    warn(f"Table '{table_name}' does not exist. Attempting to create it from CSV structure.")
+                    self.create_table_from_csv(csv_filepath, table_name, transform=transform)
+                    inspector = sqlalchemy.inspect(self.engine)
+                    if not inspector.has_table(table_name):
+                        warn(f"Failed to create table '{table_name}'")
+                        return
+                else:
+                    warn(f"Table '{table_name}' does not exist. Set to create with create=True")
+                    return
+        
+            self.verb(f"Loading data from '{csv_filepath}' into table '{table_name}'")
 
             if temp_table:
                 self.exec(f"CREATE TABLE IF NOT EXISTS {temp_table} as select * from {table_name} limit 0")
@@ -145,7 +211,7 @@ class MyMaria:
             for column in columns:
                 if column in dtype_from_csv:
                     if dtype_from_csv[column] == object:
-                        dtype[column] = sqlalchemy.String
+                        dtype[column] = sqlalchemy.String(255) #Add length for load as well
                     elif dtype_from_csv[column] == int:
                         dtype[column] = sqlalchemy.Integer
                     elif dtype_from_csv[column] == float:
@@ -155,7 +221,7 @@ class MyMaria:
                     elif column.lower() in ["quote_time"]:
                         dtype[column] = sqlalchemy.DateTime
                     else:
-                        dtype[column] = sqlalchemy.String
+                        dtype[column] = sqlalchemy.String(255) #Add length for load as well
 
             # check for all columns
             for column in columns:
@@ -171,7 +237,7 @@ class MyMaria:
 
                 try:
                     chunk.to_sql(name=insert_table, con=self.engine, if_exists='append', index=False,
-                                 dtype=dtype)  #Pass dtype here instead of astype
+                                 dtype=dtype)  # Pass dtype here instead of astype
                     session.commit()  # Commit each chunk for efficiency
                     self.verb(f"Loaded {len(chunk)} rows into table '{table_name}'")
                 except SQLAlchemyError as e:
