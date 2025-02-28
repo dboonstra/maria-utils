@@ -181,13 +181,10 @@ except Exception as e:
         * transform: A function to transform each DataFrame chunk before loading (optional).
 
 ## Dependencies
-pandas
-sqlalchemy
-mariadb
-configparser (included in Python's standard library)
-os (included in Python's standard library)
-typing (included in Python's standard library)
-python-dotenv
+* pandas
+* sqlalchemy
+* mariadb
+* configparser (included in Python's standard library)
 
 ## License
 MIT License
