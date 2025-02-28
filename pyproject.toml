@@ -1,0 +1,11 @@
+[project]
+name = "mymaria"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "mariadb>=1.1.12",
+    "pandas>=2.2.3",
+    "sqlalchemy>=2.0.38",
+]
