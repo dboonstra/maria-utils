@@ -1,9 +1,8 @@
 import sys
-sys.path.insert(0, '..')
-sys.path.insert(0, '.')
-from mymaria import MyMaria
+sys.path.insert(0, '../src')
+sys.path.insert(0, './src')
+from mariaio import MyMaria
 import pandas as pd
-from datetime import datetime, date
 
 
 def transform(df: pd.DataFrame) -> pd.DataFrame:

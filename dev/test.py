@@ -1,7 +1,7 @@
 import sys
-sys.path.insert(0,'..')
-sys.path.insert(0,'.')
-from mymaria import MyMaria
+sys.path.insert(0,'../src')
+sys.path.insert(0,'./src')
+from mariaio import MyMaria
 import pandas as pd
 
 try:
@@ -22,7 +22,5 @@ try:
 
     db.load_csv_to_mariadb("/tmp/data.csv", "test")
 
-except (FileNotFoundError, ValueError, SQLAlchemyError, OperationalError) as e:
-    print(f"Error: {e}")
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
