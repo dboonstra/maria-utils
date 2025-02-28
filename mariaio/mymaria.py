@@ -25,6 +25,9 @@ class MyMaria:
         self.load_config()
         self.connect()
 
+    def __repr__(self) -> str:
+        return "MyMaria:" + self.database
+
     def __del__(self):
         """Destructor - automatically close connections when the object is destroyed."""
         if self.verbose:
