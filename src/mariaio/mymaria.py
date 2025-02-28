@@ -14,8 +14,10 @@ def warn(*a):
 
 
 class MyMaria:
-    def __init__(self, verbose: bool = False, config_file: str = "", database: str = "fin"):
+    def __init__(self, verbose: bool = False, config_file: str = "", database: str = ""):
         # Use environment variable for default config file location
+        if not database:
+            raise ValueError("MyMaria.database is not defined")
         if not config_file:
             self.config_file = os.path.join(os.path.expanduser("~"), ".config", "database.ini")
         else:
@@ -45,8 +47,7 @@ class MyMaria:
             self.user = db_config.get('user', 'none')
             self.password = db_config.get('password', 'none')
         except (FileNotFoundError, KeyError, configparser.Error) as e:
-            warn(f"Error loading '{self.database}'config from {self.config_file}: {e}")
-            sys.exit(1)
+            raise ValueError(f"Error loading '{self.database}'config from {self.config_file}: {e}")
 
     def verb(self, *a):
         if self.verbose:
@@ -67,8 +68,7 @@ class MyMaria:
                 f"mariadb+mariadbconnector://{self.user}:{self.password}@{self.host}/{self.database}")
 
         except mariadb.Error as e:
-            warn(f"Error connecting to the database: {e}")
-            sys.exit(1)
+            raise ValueError(f"Error connecting to the database: {e}")
 
     def close(self):
         """Closes the database connection."""
