@@ -6,7 +6,8 @@ import pandas as pd
 
 try:
     # Create a MyMaria object
-    db = MyMaria(verbose=True, database="fin")
+    # uses default config_file and config name
+    db = MyMaria(verbose=True) 
 
     # Example usage
     db.exec("CREATE TABLE IF NOT EXISTS test (id INT, name VARCHAR(255), value FLOAT)")

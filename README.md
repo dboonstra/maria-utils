@@ -20,23 +20,24 @@ pip install .
 ```
 
 ## Configuration
-MariaIO uses a configuration file (database.ini) to store database connection details. The default location is ~/.config/database.ini. You can override this location by providing a config_file parameter when instantiating the MyMaria class.
+MariaIO uses a configuration file (mymaria.ini) to store database connection details. The default location is ~/.config/mymaria.ini, the default config name is 'default'. You can override this location by providing a config_file parameter when instantiating the MyMaria class.
 
 ### Example ~/.config/database.ini:
 ```ini
-[mydatabase]
+[default]
 host = localhost
 port = 3306
 user = your_user
 password = your_password
+database = mydatabase
 
 [otherdatabase]
 host = other_host
 port = 3306
 user = your_other_user
 password = your_other_password
+database = mydatabase
 ```
-The [mydatabase] section name should match the database parameter when creating the MyMaria object.
 The host, port, user, and password should be replaced with your MariaDB credentials.
 
 ## Usage
@@ -68,7 +69,7 @@ import pandas as pd
 
 try:
     # Create a MyMaria object
-    db = MyMaria(verbose=True, database="mydatabase")
+    db = MyMaria(verbose=True)
 
     # Ensure the table test exist
     db.exec("CREATE TABLE IF NOT EXISTS test (id INT, name VARCHAR(255), value FLOAT)")
@@ -87,13 +88,17 @@ except Exception as e:
 
 ### Loading Data into a New Table from CSV
 
+If a table for the CSV does not exist, this module may create one for you. 
+This is convenient for expediency.  After table creation, you may admin the database for indexes of interest.
+or datatype tuning. 
+
 ```
 from mariaio import MyMaria
 import pandas as pd
 
 try:
     # Create a MyMaria object
-    db = MyMaria(verbose=True, database="mydatabase")
+    db = MyMaria(verbose=True)
 
     # Create a sample CSV for testing
     csv_data = {'symbol': ["A", "B", "C"], 'strike': [10.0, 12.0, 14.0], 'type': ["CALL", "PUT", "CALL"]}
@@ -140,7 +145,7 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
 
 try:
     # Create a MyMaria object
-    db = MyMaria(verbose=True, database="mydatabase")
+    db = MyMaria(verbose=True)
 
     # Load data, applying transformation and using a temporary table
     db.load_csv_to_mariadb(
@@ -156,7 +161,7 @@ except Exception as e:
 ```
 
 ## Class MyMaria Methods
-* MyMaria(verbose: bool = False, config_file: str = "", database: str = "")
+* MyMaria(verbose: bool = False, config_file: str = "", config: str = "")
     * Initializes the MyMaria object and establishes a connection to the database.
     * Parameters:
         *  verbose: Enables verbose output for debugging.

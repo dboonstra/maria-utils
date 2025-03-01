@@ -14,21 +14,25 @@ def warn(*a):
 
 
 class MyMaria:
-    def __init__(self, verbose: bool = False, config_file: str = "", database: str = ""):
+    def __init__(self, verbose: bool = False, config_file: str = "", conf: str = "default"):
         # Use environment variable for default config file location
-        if not database:
-            raise ValueError("MyMaria.database is not defined")
+        self.verbose = verbose
+        self.conn = None
+        self.cursor = None
+        self.engine = None
         if not config_file:
-            self.config_file = os.path.join(os.path.expanduser("~"), ".config", "database.ini")
+            self.config_file = os.path.join(os.path.expanduser("~"), ".config", "mymaria.ini")
         else:
             self.config_file = config_file
-        self.verbose = verbose
-        self.database = database
+        self.conf = conf
         self.load_config()
         self.connect()
 
+    def __str__(self) -> str:
+        return "MyMaria:" + self.conf
+
     def __repr__(self) -> str:
-        return "MyMaria:" + self.database
+        return self.__str__()
 
     def __del__(self):
         """Destructor - automatically close connections when the object is destroyed."""
@@ -41,11 +45,12 @@ class MyMaria:
         config = configparser.ConfigParser()
         try:
             config.read_file(open(self.config_file))
-            db_config = config[self.database]
+            db_config = config[self.conf]
             self.host = db_config.get('host', 'localhost')  # Default to localhost if not found
             self.port = db_config.getint('port', 3306)  # Default to 3306 if not found
             self.user = db_config.get('user', 'none')
             self.password = db_config.get('password', 'none')
+            self.database = db_config.get('database', self.conf)
         except (FileNotFoundError, KeyError, configparser.Error) as e:
             raise ValueError(f"Error loading '{self.database}'config from {self.config_file}: {e}")
 

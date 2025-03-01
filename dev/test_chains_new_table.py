@@ -16,7 +16,8 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
 
 try:
     # Create a MyMaria object
-    db = MyMaria(verbose=True, database="fin")
+    # uses default config_file and config name
+    db = MyMaria(verbose=True)
 
     # Example usage
     db.load_csv_to_mariadb("20250227_chains.csv", "chains_created", create_table=True, transform=transform)
