@@ -235,7 +235,7 @@ class MyMaria:
         except Exception as e:
             warn(f"An unexpected error occurred: {e}")
 
-    def _insert_chunk(self, chunk, insert_table, session, dtype, columns, chunksize=10000):
+    def _insert_chunk(self, chunk, insert_table, session, dtype, columns, chunksize=None):
         """
         Helper function to insert a chunk of data into the database.
         """
@@ -246,7 +246,7 @@ class MyMaria:
         try:
             chunk.to_sql(name=insert_table, con=self.engine, if_exists='append', 
                          index=False, dtype=dtype,
-                         chunksize=None)
+                         chunksize=chunksize)
             session.commit()  # Commit each chunk for efficiency
             self.verb(f"Loaded {len(chunk)} rows into table '{insert_table}'")
         except SQLAlchemyError as e:
