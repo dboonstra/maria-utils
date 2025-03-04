@@ -122,56 +122,17 @@ class MyMaria:
             df (pd.DataFrame): The path to the CSV file.
             table_name (str): The name of the table to create.
         """
+        if transform:
+            df = transform(df)
+
+        columns: list = []
+        dtype: dict = self._init_dtype(df)
+        for col_name, dtype in dtype.items():
+            columns.append(sqlalchemy.Column(col_name, dtype))
+            
         try:
-            if transform:
-                df = transform(df)
-
-
-            # Map pandas dtypes to SQLAlchemy types
-            type_mapping = {
-                "object": sqlalchemy.String(255),
-                "int64": sqlalchemy.Integer,
-                "float64": sqlalchemy.Float,
-                "bool": sqlalchemy.Boolean,
-                "datetime64[ns]": sqlalchemy.DateTime,
-            }
-
-            columns = []
-            for col_name, dtype in df.dtypes.items():
-                sample = df[col_name].iloc[0]
-                column_type = None
-
-                if str(dtype) in ["datetime64[ns]"]:
-                    column_type = sqlalchemy.DateTime
-                elif isinstance(sample, date):
-                    column_type = sqlalchemy.Date
-                elif isinstance(sample, datetime):
-                    column_type = sqlalchemy.DateTime
-                elif isinstance(sample, bool):
-                    column_type = sqlalchemy.Boolean
-                elif str(dtype) in type_mapping:
-                    column_type = type_mapping[str(dtype)]
-                else:
-                    column_type = sqlalchemy.String(255)  # Default to String if type not recognized, ADD LENGTH
-                
-                if self.verbose:
-                    
-                    typ = str(type(sample))
-                    print(f"____ set col {col_name} => {str(dtype)} => {column_type} [[ {typ} ]]")
-
-
-                # Add a length to string columns
-                if isinstance(column_type, sqlalchemy.String):
-                  column_type = sqlalchemy.String(255)  # Assign a default length for string
-                  # TODO: maybe use 2xmax len observed ?
-                if self.verbose:
-                    warn(f"New table column: {col_name} => {str(dtype)} => {column_type}")
-                columns.append(sqlalchemy.Column(col_name, column_type))
-
             metadata = sqlalchemy.MetaData()
             table = sqlalchemy.Table(table_name, metadata, *columns)
-            print(table)
-
             metadata.create_all(self.engine)
             self.verb(f"Table '{table_name}' created successfully.")
 
@@ -236,37 +197,31 @@ class MyMaria:
 
             # Load and process data
             if isinstance(data, str):
-              self.verb(f"Loading data from '{data}' into table '{table_name}'")
+                self.verb(f"Loading data from '{data}' into table '{table_name}'")
 
-              # Infer data types from the first few rows of CSV
-              # also read into a small dataframe
-              dtype_from_data: dict = {}
-              sample_df = pd.read_csv(data, nrows=10)
-              if transform:
-                  sample_df = transform(sample_df)
+                # Infer data types from the first few rows of CSV
+                # also read into a small dataframe
+                sample_df = pd.read_csv(data, nrows=10)
+                if transform:
+                    sample_df = transform(sample_df)
+                dtype: dict = self._init_dtype(sample_df)
 
-              for col in sample_df:
-                  dtype_from_data[col] = sample_df[col].dtype
+                # Use pandas to read the CSV in chunks and load into the database
+                for chunk in pd.read_csv(data, chunksize=chunksize):
+                    # filter columns not in table
+                    chunk = chunk[[col for col in chunk.columns if col in columns]]
+                    if transform:
+                        chunk = transform(chunk)
+                    self._insert_chunk(chunk, insert_table, session, dtype, columns)
 
-              # Use pandas to read the CSV in chunks and load into the database
-              for chunk in pd.read_csv(data, chunksize=chunksize):
-                  # filter columns not in table
-                  chunk = chunk[[col for col in chunk.columns if col in columns]]
-                  if transform:
-                      chunk = transform(chunk)
-
-                  self._insert_chunk(chunk, insert_table, session, dtype_from_data, columns)
             elif isinstance(data, pd.DataFrame):
-              self.verb(f"Loading data from DataFrame into table '{table_name}'")
-              dtype_from_data = {}
-              for col in data:
-                  dtype_from_data[col] = data[col].dtype
-
-              # filter columns not in table
-              data = data[[col for col in data.columns if col in columns]]
-              if transform:
-                  data = transform(data)
-              self._insert_chunk(data, insert_table, session, dtype_from_data, columns)
+                self.verb(f"Loading data from DataFrame into table '{table_name}'")
+                if transform:
+                    data = transform(data)
+                # filter columns not in table
+                data = data[[col for col in data.columns if col in columns]]
+                dtype: dict = self._init_dtype(data) 
+                self._insert_chunk(data, insert_table, session, dtype, columns, chunksize=chunksize)
             else:
                 raise ValueError("Invalid data type. Must be a filepath (str) or a DataFrame.")
 
@@ -282,39 +237,71 @@ class MyMaria:
             warn(f"An unexpected error occurred: {e}")
 
     def load_csv_to_mariadb(self, *args, **kwargs):
-      # alias with a warning
-      warn("Warning: load_csv_to_mariadb is deprecated. Use load_data_to_mariadb")
-      self.load_data_to_mariadb(*args, **kwargs)
+        # alias with a warning
+        warn("Warning: load_csv_to_mariadb is deprecated. Use load_data_to_mariadb")
+        self.load_data_to_mariadb(*args, **kwargs)
 
-    def _insert_chunk(self, chunk, insert_table, session, dtype_from_data, columns):
-      """
-      Helper function to insert a chunk of data into the database.
-      """
-      # Define dtype (SQLAlchemy data types for the table)
-      dtype = {}
-      for column in columns:
-          if column in dtype_from_data:
-              if dtype_from_data[column] == object:
-                  dtype[column] = sqlalchemy.String(255) #Add length for load as well
-              elif dtype_from_data[column] == int:
-                  dtype[column] = sqlalchemy.Integer
-              elif dtype_from_data[column] == float:
-                  dtype[column] = sqlalchemy.Float
-              elif column.lower() in ["quote_day", "expiration_date", "date"]:
-                  dtype[column] = sqlalchemy.Date
-              elif column.lower() in ["quote_time"]:
-                  dtype[column] = sqlalchemy.DateTime
-              else:
-                  dtype[column] = sqlalchemy.String(255) #Add length for load as well
+    def _insert_chunk(self, chunk, insert_table, session, dtype, columns, chunksize=10000):
+        """
+        Helper function to insert a chunk of data into the database.
+        """
+        # check for all columns
+        for column in columns:
+            if column not in chunk:
+                warn(f"Warning: Column {column} found in db table, but not in data.  This will be ignored")
+        try:
+            chunk.to_sql(name=insert_table, con=self.engine, if_exists='append', 
+                         index=False, dtype=dtype,
+                         chunksize=None)
+            session.commit()  # Commit each chunk for efficiency
+            self.verb(f"Loaded {len(chunk)} rows into table '{insert_table}'")
+        except SQLAlchemyError as e:
+            warn(f"Error inserting data: {e}")
+            session.rollback()  # Rollback the transaction in case of error
 
-      # check for all columns
-      for column in columns:
-          if column not in chunk:
-              warn(f"Warning: Column {column} found in db table, but not in data.  This will be ignored")
-      try:
-          chunk.to_sql(name=insert_table, con=self.engine, if_exists='append', index=False, dtype=dtype)
-          session.commit()  # Commit each chunk for efficiency
-          self.verb(f"Loaded {len(chunk)} rows into table '{insert_table}'")
-      except SQLAlchemyError as e:
-          warn(f"Error inserting data: {e}")
-          session.rollback()  # Rollback the transaction in case of error
+
+    def _init_dtype(self, df) -> dict:
+        """
+        interpret sql datatypes from columns of dataframe 
+        Args: 
+          df (pd.Dataframe)  data frame to type
+        Returns: 
+         dict({ colname => sqlalchemy-datatype })
+        """
+        sample_df = df.head(10).copy()
+        # Define dtype (SQLAlchemy data types for the table)
+        dtype: dict = {}
+        dtype_from_data: dict = {}
+
+        for col in sample_df:
+            dtype_from_data[col] = sample_df[col].dtype
+
+        # Map pandas dtypes to SQLAlchemy types
+        type_mapping = {
+            "object": sqlalchemy.String(255),
+            "int64": sqlalchemy.Integer,
+            "float64": sqlalchemy.Float,
+            "bool": sqlalchemy.Boolean,
+            "datetime64[ns]": sqlalchemy.DateTime,
+        }
+
+        for col_name, col_dtype in sample_df.dtypes.items():
+            column_type = sqlalchemy.String(255)  # Default to String if type not recognized, ADD LENGTH
+            if col_dtype == "object":
+                sample = sample_df[col_name].iloc[0]
+                if isinstance(sample, date):
+                    column_type = sqlalchemy.Date
+                elif isinstance(sample, datetime):
+                    column_type = sqlalchemy.DateTime
+                elif isinstance(sample, bool):
+                    column_type = sqlalchemy.Boolean
+                else:
+                    column_type = sqlalchemy.String(255)
+                if self.verbose:                
+                    typ = str(type(sample))
+                    print(f"____ set col {col_name} => {str(col_dtype)} => {column_type} [[ {typ} ]]")
+            elif str(col_dtype) in type_mapping:
+                column_type = type_mapping[str(col_dtype)]
+            dtype[col_name] = column_type
+
+        return dtype
