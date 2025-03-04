@@ -8,7 +8,7 @@ testtable = 'test_chains_created'
 
 def transform(df: pd.DataFrame) -> pd.DataFrame:
     # Convert milliseconds to seconds *in place*
-    df['time'] = df['time'] / 1000  
+    df['time'] = (df['time'] / 1000).astype(int)  
     # Create datetime and date objects using the correct column
     df['quote_time'] = pd.to_datetime(df['time'], unit='s')
     df['quote_date'] = df['quote_time'].dt.date
