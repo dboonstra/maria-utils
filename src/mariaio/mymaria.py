@@ -37,8 +37,7 @@ class MyMaria:
 
     def __del__(self):
         """Destructor - automatically close connections when the object is destroyed."""
-        if self.verbose:
-            warn("MyMaria object is being destroyed. Attempting to close connections.")
+        self.verb("MyMaria object is being destroyed. Attempting to close connections.")
         self.close()
 
     def load_config(self):
@@ -171,7 +170,7 @@ class MyMaria:
             inspector = sqlalchemy.inspect(self.engine)
             if not inspector.has_table(table_name):
                 if create_table:
-                    warn(f"Table '{table_name}' does not exist. Attempting to create it from data structure.")
+                    self.verb(f"Table '{table_name}' does not exist. Attempting to create it from data structure.")
                     if isinstance(data, str):
                        self.create_table_from_csv(data, table_name, transform=transform)
                     elif isinstance(data, pd.DataFrame):
@@ -235,11 +234,6 @@ class MyMaria:
             warn(f"Value Error: {ve}")
         except Exception as e:
             warn(f"An unexpected error occurred: {e}")
-
-    def load_csv_to_mariadb(self, *args, **kwargs):
-        # alias with a warning
-        warn("Warning: load_csv_to_mariadb is deprecated. Use load_data_to_mariadb")
-        self.load_data_to_mariadb(*args, **kwargs)
 
     def _insert_chunk(self, chunk, insert_table, session, dtype, columns, chunksize=10000):
         """
