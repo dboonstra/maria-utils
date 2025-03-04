@@ -4,6 +4,7 @@ sys.path.insert(0, './src')
 from mariaio import MyMaria
 import pandas as pd
 
+testtable = 'test_chains_created'
 
 def transform(df: pd.DataFrame) -> pd.DataFrame:
     # Convert milliseconds to seconds *in place*
@@ -13,14 +14,15 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
     df['quote_date'] = df['quote_time'].dt.date
     return df
 
+# Create a MyMaria object
+# uses default config_file and config name
+db = MyMaria(verbose=True)
+db.exec(f"DROP TABLE IF EXISTS {testtable}")
+
 
 try:
-    # Create a MyMaria object
-    # uses default config_file and config name
-    db = MyMaria(verbose=True)
-
     # Example usage
-    db.load_csv_to_mariadb("20250227_chains.csv", "chains_created", create_table=True, transform=transform)
+    db.load_data_to_mariadb("20250227_chains.csv",testtable, create_table=True, transform=transform)
 
 except Exception as e:
     print(f"An unexpected error occurred: {e}")

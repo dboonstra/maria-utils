@@ -4,8 +4,17 @@ sys.path.insert(0, './src')
 from mariaio import MyMaria
 import pandas as pd
 
+testtable = 'test_chains'
+temptable = 'test_chains_tmp'
 
 def transform(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Transform a dataframe for insertion to database 
+
+    This may enforce datatypes , add/rename columns, etc
+
+    This function is passed to the load_data_to_mariadb function
+    """
     # Convert milliseconds to seconds *in place*
     df['time'] = df['time'] / 1000  
     # Create datetime and date objects using the correct column
@@ -14,13 +23,13 @@ def transform(df: pd.DataFrame) -> pd.DataFrame:
     return df
 
 
-try:
-    # Create a MyMaria object
-    # uses default config_file and config name
-    db = MyMaria(verbose=True)
+# Create a MyMaria object
+# uses default config_file and config name
+db = MyMaria(verbose=True)
 
+try:
     # Example usage
-    db.load_csv_to_mariadb("20250227_chains.csv", "chains_tt", temp_table="chains_tt_tmp", transform=transform)
+    db.load_data_to_mariadb("20250227_chains.csv", testtable, temp_table=temptable, transform=transform)
 
 except Exception as e:
     print(f"An unexpected error occurred: {e}")
