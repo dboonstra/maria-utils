@@ -51,7 +51,13 @@ class MyMaria:
             self.user = db_config.get('user', 'none')
             self.password = db_config.get('password', 'none')
             self.database = db_config.get('database', self.conf)
-        except (FileNotFoundError, KeyError, configparser.Error) as e:
+        except FileNotFoundError as e:
+            warn(f"Configuration file '{self.config_file}' not found: {e}")
+            sys.exit(11)
+        except KeyError as e:
+            warn(f"Configuration key '{e}' not found in '{self.config_file}'")
+            sys.exit(11)
+        except configparser.Error as e:    
             raise ValueError(f"Error loading '{self.database}'config from {self.config_file}: {e}")
 
     def verb(self, *a):
