@@ -125,7 +125,7 @@ class MyMaria:
             df = transform(df)
 
         columns: list = []
-        dtype: dict = self._init_dtype(df)
+        dtype: dict = self._init_dtype(df, table_name)
         for col_name, dtype in dtype.items():
             columns.append(sqlalchemy.Column(col_name, dtype))
             
@@ -203,7 +203,7 @@ class MyMaria:
                 sample_df = pd.read_csv(data, nrows=10)
                 if transform:
                     sample_df = transform(sample_df)
-                dtype: dict = self._init_dtype(sample_df)
+                dtype: dict = self._init_dtype(sample_df, table_name)
 
                 # Use pandas to read the CSV in chunks and load into the database
                 for chunk in pd.read_csv(data, chunksize=chunksize):
@@ -219,7 +219,7 @@ class MyMaria:
                     data = transform(data)
                 # filter columns not in table
                 data = data[[col for col in data.columns if col in columns]]
-                dtype: dict = self._init_dtype(data) 
+                dtype: dict = self._init_dtype(data, table_name) 
                 self._insert_chunk(data, insert_table, session, dtype, columns, chunksize=chunksize)
             else:
                 raise ValueError("Invalid data type. Must be a filepath (str) or a DataFrame.")
@@ -254,7 +254,7 @@ class MyMaria:
             session.rollback()  # Rollback the transaction in case of error
 
 
-    def _init_dtype(self, df) -> dict:
+    def _init_dtype(self, df, table_name) -> dict:
         """
         interpret sql datatypes from columns of dataframe 
         Args: 
@@ -262,40 +262,57 @@ class MyMaria:
         Returns: 
          dict({ colname => sqlalchemy-datatype })
         """
-        sample_df = df.head(10).copy()
-        # Define dtype (SQLAlchemy data types for the table)
+
+        print("MY DF " , df)
+
+        inspector = sqlalchemy.inspect(self.engine)
         dtype: dict = {}
-        dtype_from_data: dict = {}
+        
+        if inspector.has_table(table_name):
+            self.verb(f"Table {table_name} exists, inspecting for existing columns and types")
+            for column in inspector.get_columns(table_name):
+                col_name = column['name']
+                col_type = column['type']
+                dtype[col_name] = col_type
+                if self.verbose:
+                   print(f"____ found col {col_name} => {col_type}")
+        else:
+            self.verb(f"Table {table_name} does not exists, inferring from dataframe.")
+            sample_df = df.head(10).copy()
 
-        for col in sample_df:
-            dtype_from_data[col] = sample_df[col].dtype
+            # Map pandas dtypes to SQLAlchemy types
+            type_mapping = {
+                "object": sqlalchemy.String(255),
+                "int64": sqlalchemy.Integer,
+                "float64": sqlalchemy.Float,
+                "bool": sqlalchemy.Boolean,
+                "datetime64[ns]": sqlalchemy.DateTime,
+            }
 
-        # Map pandas dtypes to SQLAlchemy types
-        type_mapping = {
-            "object": sqlalchemy.String(255),
-            "int64": sqlalchemy.Integer,
-            "float64": sqlalchemy.Float,
-            "bool": sqlalchemy.Boolean,
-            "datetime64[ns]": sqlalchemy.DateTime,
-        }
-
-        for col_name, col_dtype in sample_df.dtypes.items():
-            column_type = sqlalchemy.String(255)  # Default to String if type not recognized, ADD LENGTH
-            if col_dtype == "object":
+            for col_name, col_dtype in sample_df.dtypes.items():
+                column_type = sqlalchemy.String(255)  # Default to String if type not recognized, ADD LENGTH
                 sample = sample_df[col_name].iloc[0]
-                if isinstance(sample, date):
-                    column_type = sqlalchemy.Date
-                elif isinstance(sample, datetime):
-                    column_type = sqlalchemy.DateTime
-                elif isinstance(sample, bool):
-                    column_type = sqlalchemy.Boolean
-                else:
-                    column_type = sqlalchemy.String(255)
-                if self.verbose:                
+                if col_dtype == "object":
+                    if isinstance(sample, date):
+                        column_type = sqlalchemy.Date
+                    elif isinstance(sample, datetime):
+                        column_type = sqlalchemy.DateTime
+                    elif isinstance(sample, bool):
+                        column_type = sqlalchemy.Boolean
+                    else:
+                        column_type = sqlalchemy.String(255)                        
+                elif str(col_dtype) in type_mapping:
+                    if str(col_dtype) == 'int64':
+                        if sample > 2147483647 or sample < -2147483648:
+                            column_type = sqlalchemy.BigInteger
+                        else:
+                            column_type = sqlalchemy.Integer        
+                    else:
+                        column_type = type_mapping[str(col_dtype)]
+
+                dtype[col_name] = column_type
+                if self.verbose:
                     typ = str(type(sample))
-                    print(f"____ set col {col_name} => {str(col_dtype)} => {column_type} [[ {typ} ]]")
-            elif str(col_dtype) in type_mapping:
-                column_type = type_mapping[str(col_dtype)]
-            dtype[col_name] = column_type
+                    warn(f"____ set col {col_name} => {str(col_dtype)} => {column_type} [ {sample} [ {typ} ]]")
 
         return dtype
