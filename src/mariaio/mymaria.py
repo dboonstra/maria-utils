@@ -213,10 +213,11 @@ class MyMaria:
 
                 # Use pandas to read the CSV in chunks and load into the database
                 for chunk in pd.read_csv(data, chunksize=chunksize):
-                    # filter columns not in table
-                    chunk = chunk[[col for col in chunk.columns if col in columns]]
                     if transform:
                         chunk = transform(chunk)
+                    # filter columns not in table
+                    chunk = chunk[[col for col in chunk.columns if col in columns]]
+
                     self._insert_chunk(chunk, insert_table, session, dtype, columns)
 
             elif isinstance(data, pd.DataFrame):
@@ -258,6 +259,8 @@ class MyMaria:
         except SQLAlchemyError as e:
             warn(f"Error inserting data: {e}")
             session.rollback()  # Rollback the transaction in case of error
+            sys.exit(11)
+
 
 
     def _init_dtype(self, df, table_name) -> dict:
