@@ -263,8 +263,6 @@ class MyMaria:
          dict({ colname => sqlalchemy-datatype })
         """
 
-        print("MY DF " , df)
-
         inspector = sqlalchemy.inspect(self.engine)
         dtype: dict = {}
         
