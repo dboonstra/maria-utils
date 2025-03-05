@@ -42,16 +42,35 @@ The host, port, user, and password should be replaced with your MariaDB credenti
 
 ## Usage
 
-### Built in csv2table app
+### Built in csv2table cmdline app
 
 *csv2table()* is an app handler that may be used to for a quick cmdline tool development  
 ```
-from mariaio import csv2table
-if __name__ == "__main__":
-    csv2table()
+usage: csv2table [-h] [-i INFILE] [-t TABLE] [-tt TEMPTABLE] [--dbconfig DBCONFIG] [-n DBNAME] [-c] [-v]
+
+load csv file to mariadb table
+
+options:
+  -h, --help            show this help message and exit
+  -i INFILE, --infile INFILE
+                        csv file to load
+  -t TABLE, --table TABLE
+                        mariadb table for load
+  -tt TEMPTABLE, --temptable TEMPTABLE
+                        mariadb table for load
+  --dbconfig DBCONFIG   name of database configuration of mymaria.ini [default default]
+  -n DBNAME, --dbname DBNAME
+                        name of database configuration of mymaria.ini [default default]
+  -c, --create          all table create if not existing
+  -v, --verbose         be verbose
+
+csv2table is app module (mariaio.csv2table_app)
+
 ```
 
-Example for special cases of required data transformation
+For using csvtable for special cases of required data transformation, 
+build the transformation as a function and pass it to csv2table().
+
 ```
 
 def transform(df: pd.DataFrame) -> pd.DataFrame:
