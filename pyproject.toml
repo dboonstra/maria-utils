@@ -1,6 +1,10 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "maria-utils"
-version = "0.1.1"
+name = "mariaio"  # Changed to match package name
+version = "0.1.2"
 description = "Manages MariaDB authentication configuration, Loads data from CSV files"
 readme = "README.md"
 license = {file = "LICENSE"}
@@ -17,3 +21,7 @@ dependencies = [
 
 [project.urls]
 Homepage = "https://github.com/dboonstra/maria-utils"
+
+[project.scripts]
+csv2table = "mariaio.csv2table_app:csv2table" 
+

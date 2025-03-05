@@ -41,6 +41,45 @@ database = mydatabase
 The host, port, user, and password should be replaced with your MariaDB credentials.
 
 ## Usage
+
+### Built in csv2table app
+
+*csv2table()* is an app handler that may be used to for a quick cmdline tool development  
+```
+from mariaio import csv2table
+if __name__ == "__main__":
+    csv2table()
+```
+
+Example for special cases of required data transformation
+```
+
+def transform(df: pd.DataFrame) -> pd.DataFrame:
+    """
+    Transform a dataframe for insertion to database 
+
+    This may enforce datatypes , add/rename columns, etc
+
+    This function is passed to the load_data_to_mariadb function
+
+    reset ms timestamp to seconds, 
+    add new columns quote_time and quote_date
+    """
+    # Convert milliseconds to seconds *in place*
+    df['time'] = (df['time'] / 1000).astype(int)  
+    # Create datetime and date objects using the correct column
+    df['quote_time'] = pd.to_datetime(df['time'], unit='s')
+    df['quote_date'] = df['quote_time'].dt.date
+    return df
+
+
+if __name__ == "__main__":
+    csv2table(transform_func=transform)
+
+```
+
+See dev/csv2table_chains.py  dev/csv2table_simple.py for testing
+
 ### Basic Connection and Table Operations
 
 ```
