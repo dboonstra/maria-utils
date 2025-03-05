@@ -166,6 +166,13 @@ class MyMaria:
             each DataFrame chunk before loading it into the database.
             Defaults to None.
         """
+        if table_name is None:
+            warn("mymaria.load_data_to_mariadb: No table name provided")
+            return
+        if data is None:
+            warn("mymaria.load_data_to_mariadb: No data provided")
+            return
+
         insert_table = table_name
         try:
             # Create a session
